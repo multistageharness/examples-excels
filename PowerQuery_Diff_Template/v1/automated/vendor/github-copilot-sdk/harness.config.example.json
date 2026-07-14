@@ -1,0 +1,34 @@
+{
+  "$comment": "Copy to harness.config.json and pass via createHarness({ configFile: 'harness.config.json' }). Precedence: defaults < file < env < programmatic overrides.",
+  "cliPath": null,
+  "cliArgs": ["--disable-builtin-mcps"],
+  "httpProxy": null,
+  "proxyFromEnv": true,
+  "model": "gpt-5-mini",
+  "reasoningEffort": "low",
+  "streaming": false,
+  "requestTimeoutMs": 120000,
+  "systemPromptFile": null,
+  "systemPromptMode": "append",
+  "tokenBudget": {
+    "maxTokens": 200000,
+    "warnAtPercent": 80,
+    "enforcement": "block"
+  },
+  "contextStore": {
+    "enabled": true,
+    "directory": ".copilot-harness/context"
+  },
+  "observability": {
+    "enabled": true,
+    "serviceName": "my-copilot-agent",
+    "otlpEndpoint": null,
+    "exporterType": null,
+    "filePath": ".copilot-harness/traces.jsonl",
+    "captureContent": false
+  },
+  "structured": {
+    "maxRepairAttempts": 2
+  },
+  "sessionDefaults": {}
+}

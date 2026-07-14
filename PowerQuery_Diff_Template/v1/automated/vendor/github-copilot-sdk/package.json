@@ -1,0 +1,53 @@
+{
+  "name": "llm-sdk-github-copilot",
+  "version": "0.1.0",
+  "description": "Production harness around the GitHub Copilot SDK: chat, SSE streaming, structured I/O, tool calling, token budgets, session persistence, SRE observability (OpenTelemetry), events and hooks.",
+  "type": "module",
+  "main": "src/index.mjs",
+  "exports": {
+    ".": "./src/index.mjs",
+    "./config": "./src/config.mjs",
+    "./cli-path": "./src/cli-path.mjs",
+    "./tokens": "./src/tokens.mjs",
+    "./usage": "./src/usage.mjs",
+    "./store": "./src/store.mjs",
+    "./hooks": "./src/hooks.mjs",
+    "./structured": "./src/structured.mjs",
+    "./observability": "./src/observability.mjs"
+  },
+  "scripts": {
+    "test": "node --test \"test/*.test.mjs\"",
+    "test:watch": "node --test --watch \"test/*.test.mjs\"",
+    "example": "node examples/01-chat.mjs"
+  },
+  "keywords": [
+    "github-copilot",
+    "copilot-sdk",
+    "llm",
+    "harness",
+    "opentelemetry",
+    "sre",
+    "streaming",
+    "structured-output",
+    "tool-calling"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/multistageharness/llm-sdk-github-copilot.git"
+  },
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.6"
+  },
+  "dependencies": {
+    "@github/copilot-sdk": "^1.0.0"
+  },
+  "peerDependencies": {
+    "@opentelemetry/api": ">=1.7.0"
+  },
+  "peerDependenciesMeta": {
+    "@opentelemetry/api": {
+      "optional": true
+    }
+  }
+}
