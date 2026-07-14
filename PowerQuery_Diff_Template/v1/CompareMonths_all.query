@@ -1,0 +1,69 @@
+let
+    // 1. Define the chronological order of the months
+    MonthList = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"},
+
+    // 2. Helper function to load a table gracefully (returns null if the month isn't created yet)
+    GetTable = (m as text) => try Excel.CurrentWorkbook(){[Name="tbl_" & m]}[Content] otherwise null,
+
+    // 3. The Core Engine: Compares Current vs. Previous Month
+    // FIXED: Changed 'PrevTable as table' to 'PrevTable as nullable table' to allow January to pass 'null'
+    CompareMonths = (PrevTable as nullable table, CurrTable as table, CurrMonthName as text) =>
+        let
+            // If January (no previous month), establish the baseline
+            Result = if PrevTable = null then
+                Table.AddColumn(CurrTable, "Change_Status", each "Base Month")
+            else
+                let
+                    // Full Outer Join to capture both lingering and newly dropped IDs
+                    Merged = Table.NestedJoin(CurrTable, {"ID"}, PrevTable, {"ID"}, "PrevData", JoinKind.FullOuter),
+                    Expanded = Table.ExpandTableColumn(Merged, "PrevData", {"ID"}, {"Prev_ID"}),
+                    
+                    // Flag changes
+                    DiffFlag = Table.AddColumn(Expanded, "Change_Status", each
+                        if [Prev_ID] = null then "Added"
+                        else if [ID] = null then "Removed"
+                        else "Unchanged"
+                    ),
+                    
+                    // Recover the ID for removed rows (since ID is null in the current month's table)
+                    FixID = Table.AddColumn(DiffFlag, "Final_ID", each if [ID] = null then [Prev_ID] else [ID]),
+                    DropOld = Table.RemoveColumns(FixID, {"ID", "Prev_ID"}),
+                    RenameID = Table.RenameColumns(DropOld, {{"Final_ID", "ID"}})
+                in
+                    RenameID,
+
+            // Tag every row with the current month's name
+            AddMonth = Table.AddColumn(Result, "Month", each CurrMonthName)
+        in
+            AddMonth,
+
+    // 4. The Loop: Iterate through all 12 months tracking state
+    GenerateDiffs = List.Generate(
+        () => [
+            i = 0,
+            Prev = null,
+            Curr = GetTable(MonthList{0}),
+            Diff = if GetTable(MonthList{0}) = null then null else CompareMonths(null, GetTable(MonthList{0}), MonthList{0})
+        ],
+        each [i] < 12,
+        each [
+            i = [i] + 1,
+            Prev = [Curr],
+            Curr = GetTable(MonthList{i}),
+            // Execute comparison only if the current month's table exists
+            Diff = if Curr = null then null else CompareMonths(Prev, Curr, MonthList{i})
+        ],
+        each [Diff] // Output only the resulting diff tables
+    ),
+
+    // 5. Combine the generated monthly logs into a single master table
+    ValidTables = List.RemoveNulls(GenerateDiffs),
+    FinalLog = if List.Count(ValidTables) = 0 then #table({"Error"}, {{"No tables found"}}) else Table.Combine(ValidTables),
+
+    // 6. Reorder columns so Month, ID, and Status are locked to the left
+    Cols = Table.ColumnNames(FinalLog),
+    BaseCols = {"Month", "ID", "Change_Status"},
+    OtherCols = List.Difference(Cols, BaseCols),
+    ReorderedTable = Table.ReorderColumns(FinalLog, List.Combine({BaseCols, OtherCols}))
+in
+    ReorderedTable
