@@ -1,0 +1,42 @@
+{
+  "name": "ts_xldiff_compare_months_changes",
+  "version": "1.0.0",
+  "description": "Compare monthly tables in an Excel workbook and emit only the rows that changed.",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "xldiff": "dist/cli.js"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "xldiff": "tsx src/cli.ts",
+    "sample": "tsx scripts/make-sample.ts examples/sample.xlsx",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "exceljs": "^4.4.0",
+    "fast-xml-parser": "^5.10.1",
+    "fflate": "^0.8.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0"
+  }
+}

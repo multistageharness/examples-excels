@@ -1,0 +1,104 @@
+let
+    // 1. Define the chronological order of the months (these are the SHEET names)
+    MonthList = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"},
+
+    // 2. Snapshot of every table / named range in the current workbook.
+    //    Excel.CurrentWorkbook() gives us [Name] (the object's name) and [Content],
+    //    but NOT the worksheet it lives on.
+    Workbook = Excel.CurrentWorkbook(),
+
+    // 3. Helper: look up a month's table by its SHEET name, without knowing the table name.
+    //    Each month sheet ("Jan".."Dec") is expected to hold exactly one table whose
+    //    (auto-generated) name we don't control. We locate it by matching the sheet name
+    //    against the object names, case-insensitively (handles "Jan", "tbl_Jan", "Jan_Data", ...).
+    //    Returns the table's Content, or null if the sheet/table isn't present yet.
+    GetTable = (sheetName as text) =>
+        let
+            Matches = Table.SelectRows(
+                Workbook,
+                each Text.Contains(Text.Lower([Name]), Text.Lower(sheetName))
+            ),
+            Result = try Matches{0}[Content] otherwise null
+        in
+            Result,
+
+    // 4. The Core Engine: Compares Current vs. Previous Month
+    CompareMonths = (PrevTable as nullable table, CurrTable as table, CurrMonthName as text) =>
+        let
+            Result = if PrevTable = null then
+                Table.AddColumn(CurrTable, "Change_Status", each "Base Month")
+            else
+                let
+                    // Get all column names dynamically
+                    AllCols = Table.ColumnNames(CurrTable),
+                    // Create prefixed column names to temporarily hold the previous month's data
+                    PrevColsExtracted = List.Transform(AllCols, each "Prev_" & _),
+
+                    // Full Outer Join to capture lingering and newly dropped IDs
+                    Merged = Table.NestedJoin(CurrTable, {"ID"}, PrevTable, {"ID"}, "PrevData", JoinKind.FullOuter),
+
+                    // Expand ALL columns from the previous table
+                    Expanded = Table.ExpandTableColumn(Merged, "PrevData", AllCols, PrevColsExtracted),
+
+                    // Flag whether the row was Added, Removed, or stayed the same
+                    DiffFlag = Table.AddColumn(Expanded, "Change_Status", each
+                        if Record.Field(_, "Prev_ID") = null then "Added"
+                        else if Record.Field(_, "ID") = null then "Removed"
+                        else "Unchanged"
+                    ),
+
+                    // The Magic Step: If the row was Removed, pull the data from the 'Prev_' columns.
+                    // Otherwise, use the current month's columns.
+                    RebuiltRecords = Table.FromRecords(
+                        Table.TransformRows(DiffFlag, (row) =>
+                            Record.FromList(
+                                List.Combine({
+                                    List.Transform(AllCols, (col) =>
+                                        if row[Change_Status] = "Removed" then Record.Field(row, "Prev_" & col) else Record.Field(row, col)
+                                    ),
+                                    {row[Change_Status]}
+                                }),
+                                List.Combine({AllCols, {"Change_Status"}})
+                            )
+                        )
+                    )
+                in
+                    RebuiltRecords,
+
+            // Tag every row with the current month's name
+            AddMonth = Table.AddColumn(Result, "Month", each CurrMonthName)
+        in
+            AddMonth,
+
+    // 5. The Loop: Iterate through all 12 months
+    GenerateDiffs = List.Generate(
+        () => [
+            i = 0,
+            Prev = null,
+            Curr = GetTable(MonthList{0}),
+            Diff = if GetTable(MonthList{0}) = null then null else CompareMonths(null, GetTable(MonthList{0}), MonthList{0})
+        ],
+        each [i] < 12,
+        each [
+            i = [i] + 1,
+            Prev = [Curr],
+            Curr = GetTable(MonthList{i}),
+            Diff = if Curr = null then null else CompareMonths(Prev, Curr, MonthList{i})
+        ],
+        each [Diff]
+    ),
+
+    // 6. Combine and Clean up
+    ValidTables = List.RemoveNulls(GenerateDiffs),
+    FinalLog = if List.Count(ValidTables) = 0 then #table({"Error"}, {{"No tables found"}}) else Table.Combine(ValidTables),
+
+    // 7. Reorder columns
+    Cols = Table.ColumnNames(FinalLog),
+    BaseCols = {"Month", "ID", "Change_Status"},
+    OtherCols = List.Difference(Cols, BaseCols),
+    ReorderedTable = Table.ReorderColumns(FinalLog, List.Combine({BaseCols, OtherCols})),
+
+    // 8. Filter to show ONLY Added and Removed rows
+    FilteredTable = Table.SelectRows(ReorderedTable, each ([Change_Status] <> "Unchanged" and [Change_Status] <> "Base Month"))
+in
+    FilteredTable
